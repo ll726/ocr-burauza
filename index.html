@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mobile OCR (JA) - Camera → Text</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#22c55e;
+      --border:#1f2937;
+    }
+    html, body { height:100%; }
+    body{
+      margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased;
+    }
+    .wrap{ max-width:760px; margin:0 auto; padding:20px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    h1{ font-size:1.2rem; margin:0 0 12px; }
+    p{ color:var(--muted); margin:6px 0 14px; }
+    video, canvas{ width:100%; border-radius:12px; background:#000; }
+    .row{ display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; }
+    button{
+      flex:1 1 auto; min-width:140px; padding:12px 14px; border-radius:12px; border:1px solid var(--border);
+      background:#0f172a; color:var(--text); font-weight:600; letter-spacing:.2px;
+    }
+    button.primary{ background:var(--accent); color:#053015; border-color:#16a34a; }
+    button:disabled{ opacity:.5; }
+    textarea{
+      width:100%; min-height:160px; resize:vertical; border-radius:12px; background:#0b1220; color:var(--text);
+      border:1px solid var(--border); padding:12px; font-size:14px; line-height:1.5;
+    }
+    .small{ font-size:.85rem; color:var(--muted); }
+    .badge{ display:inline-block; font-size:.75rem; padding:3px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); }
+    .progress{ height:8px; width:100%; background:#0b1220; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+    .bar{ height:100%; width:0%; background:var(--accent); transition:width .2s ease; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>📷 Mobile OCR（日本語）</h1>
+      <p>カメラで撮影 → 端末内でOCR → テキストをコピー／保存できます。<br>
+        <span class="badge">カメラ権限が必要</span> <span class="badge">HTTPSでアクセスしてください（iOS）</span>
+      </p>
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+
+      <div class="row">
+        <button id="btnStart">カメラ開始</button>
+        <button id="btnShot" class="primary" disabled>撮影してOCR</button>
+      </div>
+
+      <div class="progress" aria-hidden="true"><div id="bar" class="bar"></div></div>
+      <p id="status" class="small">待機中</p>
+
+      <textarea id="out" placeholder="ここに認識結果が表示されます"></textarea>
+      <div class="row">
+        <button id="btnCopy">コピー</button>
+        <button id="btnDownload">.txtで保存</button>
+        <button id="btnClear">クリア</button>
+      </div>
+      <p class="small">精度を上げるコツ：明るい場所で、被写体を画面いっぱいに、傾きはなるべく少なく。</p>
+    </div>
+
+    <p class="small" style="margin-top:14px;">
+      ライブラリ: <a href="https://github.com/naptha/tesseract.js" target="_blank" rel="noreferrer">Tesseract.js</a>（端末内実行） — 言語: 日本語（<code>jpn</code>）
+    </p>
+  </div>
+
+  <!-- Tesseract.js v5 -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const out = document.getElementById('out');
+    const statusEl = document.getElementById('status');
+    const bar = document.getElementById('bar');
+    const btnStart = document.getElementById('btnStart');
+    const btnShot = document.getElementById('btnShot');
+    const btnCopy = document.getElementById('btnCopy');
+    const btnDownload = document.getElementById('btnDownload');
+    const btnClear = document.getElementById('btnClear');
+
+    function setStatus(msg){ statusEl.textContent = msg; }
+    function setProgress(p){ bar.style.width = (Math.max(0, Math.min(1, p)) * 100) + '%'; }
+
+    async function startCamera(){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        btnShot.disabled = false;
+        setStatus('カメラ起動完了');
+      }catch(err){
+        console.error(err);
+        setStatus('カメラを開始できませんでした。権限とHTTPSを確認してください。');
+      }
+    }
+
+    async function doOCR(imageBitmap){
+      setStatus('OCR準備中…');
+      setProgress(0);
+      const worker = await Tesseract.createWorker('jpn', 1, {
+        logger: m => {
+          if(m.status && typeof m.progress === 'number'){
+            setStatus(`${m.status}… ${(m.progress*100).toFixed(0)}%`);
+            setProgress(m.progress);
+          }
+        },
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+      });
+      const { data: { text } } = await worker.recognize(imageBitmap, {
+        tessedit_pageseg_mode: '3', // Auto
+      });
+      await worker.terminate();
+      setProgress(1);
+      setStatus('完了');
+      return text;
+    }
+
+    btnStart.addEventListener('click', startCamera);
+
+    btnShot.addEventListener('click', async () => {
+      try{
+        setStatus('撮影中…');
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+        const maxW = 1600; // モバイル負荷対策で上限
+        const scale = Math.min(1, maxW / vw);
+        canvas.width = Math.floor(vw * scale);
+        canvas.height = Math.floor(vh * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // 画像を ImageBitmap に変換（Tesseract.js v5はこれが速い）
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+        const imgBitmap = await createImageBitmap(blob);
+
+        const text = await doOCR(imgBitmap);
+        out.value = (out.value ? out.value + "\n" : "") + text.trim();
+      }catch(err){
+        console.error(err);
+        setStatus('OCRでエラーが発生しました');
+      }
+    });
+
+    btnCopy.addEventListener('click', async () => {
+      try{
+        await navigator.clipboard.writeText(out.value || '');
+        setStatus('コピーしました');
+      }catch(e){
+        setStatus('コピーに失敗しました');
+      }
+    });
+
+    btnDownload.addEventListener('click', () => {
+      const blob = new Blob([out.value || ''], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'ocr_result.txt'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    btnClear.addEventListener('click', () => {
+      out.value = '';
+      setStatus('クリアしました');
+      setProgress(0);
+    });
+
+    // iOSでのUIブロック対策（ユーザー操作後に起動）
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState === 'visible' && video.srcObject){
+        video.play().catch(()=>{});
+      }
+    });
+  </script>
+</body>
+</html>
