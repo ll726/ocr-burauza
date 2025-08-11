@@ -3,50 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Mobile OCR (JA) - Robust Loader</title>
+  <title>Mobile OCR (JA) – Safe Build</title>
   <style>
-    :root{
-      --bg:#0b0f14; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#22c55e;
-      --border:#1f2937;
-    }
-    html, body { height:100%; }
-    body{
-      margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
-      background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased;
-    }
-    .wrap{ max-width:760px; margin:0 auto; padding:20px; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
-    h1{ font-size:1.2rem; margin:0 0 12px; }
-    p{ color:var(--muted); margin:6px 0 14px; }
-    video, canvas{ width:100%; border-radius:12px; background:#000; }
-    .row{ display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; }
-    button{
-      flex:1 1 auto; min-width:140px; padding:12px 14px; border-radius:12px; border:1px solid var(--border);
-      background:#0f172a; color:var(--text); font-weight:600; letter-spacing:.2px;
-    }
-    button.primary{ background:var(--accent); color:#053015; border-color:#16a34a; }
-    button:disabled{ opacity:.5; }
-    textarea{
-      width:100%; min-height:160px; resize:vertical; border-radius:12px; background:#0b1220; color:var(--text);
-      border:1px solid var(--border); padding:12px; font-size:14px; line-height:1.5;
-    }
-    .small{ font-size:.85rem; color:var(--muted); }
-    .badge{ display:inline-block; font-size:.75rem; padding:3px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); }
-    .progress{ height:8px; width:100%; background:#0b1220; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
-    .bar{ height:100%; width:0%; background:var(--accent); transition:width .2s ease; }
-    .err{ color:#fda4af; }
+    :root{ --bg:#0b0f14; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#22c55e; --border:#1f2937; }
+    html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP",Meiryo,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:760px;margin:0 auto;padding:18px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+    h1{font-size:1.1rem;margin:0 0 8px} p{color:var(--muted);margin:6px 0 12px}
+    video,canvas{width:100%;border-radius:12px;background:#000}
+    .row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+    button{flex:1 1 auto;min-width:140px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f172a;color:var(--text);font-weight:600}
+    button.primary{background:var(--accent);color:#053015;border-color:#16a34a} button:disabled{opacity:.55}
+    textarea{width:100%;min-height:160px;resize:vertical;border-radius:12px;background:#0b1220;color:var(--text);border:1px solid var(--border);padding:12px;font-size:14px;line-height:1.5}
+    .small{font-size:.85rem;color:var(--muted)} .err{color:#fda4af}
+    .progress{height:8px;width:100%;background:#0b1220;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+    .bar{height:100%;width:0%;background:var(--accent);transition:width .2s ease}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>📷 Mobile OCR（日本語）</h1>
-      <p>カメラで撮影 → 端末内でOCR → テキストをコピー／保存できます。<br>
-        <span class="badge">HTTPS推奨</span> <span class="badge">言語データの読み込み強化版</span>
-      </p>
+      <h1>📷 Mobile OCR（日本語）– 安定版</h1>
+      <p>「日本語データを事前読込」→「カメラ開始」→「撮影してOCR」の順で試してください。読み込みで止まる場合は回線切替（Wi‑Fi/4G）や再読み込み。</p>
       <video id="video" playsinline autoplay muted></video>
       <canvas id="canvas" style="display:none;"></canvas>
 
+      <div class="row">
+        <button id="btnPreload" class="primary">日本語データを事前読込</button>
+      </div>
       <div class="row">
         <button id="btnStart">カメラ開始</button>
         <button id="btnShot" class="primary" disabled>撮影してOCR</button>
@@ -61,44 +45,62 @@
         <button id="btnDownload">.txtで保存</button>
         <button id="btnClear">クリア</button>
       </div>
-      <p class="small">読み込みで止まる場合は、回線変更（Wi-Fi/4G）や再読み込みをお試しください。</p>
     </div>
   </div>
 
   <!-- Tesseract.js v5 -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const out = document.getElementById('out');
-    const statusEl = document.getElementById('status');
-    const bar = document.getElementById('bar');
-    const btnStart = document.getElementById('btnStart');
-    const btnShot = document.getElementById('btnShot');
-    const btnCopy = document.getElementById('btnCopy');
-    const btnDownload = document.getElementById('btnDownload');
-    const btnClear = document.getElementById('btnClear');
+    const els = {
+      video: document.getElementById('video'),
+      canvas: document.getElementById('canvas'),
+      out: document.getElementById('out'),
+      status: document.getElementById('status'),
+      bar: document.querySelector('.bar'),
+      btnPreload: document.getElementById('btnPreload'),
+      btnStart: document.getElementById('btnStart'),
+      btnShot: document.getElementById('btnShot'),
+      btnCopy: document.getElementById('btnCopy'),
+      btnDownload: document.getElementById('btnDownload'),
+      btnClear: document.getElementById('btnClear'),
+    };
 
-    function setStatus(msg, isErr=false){ statusEl.textContent = msg; statusEl.className = 'small' + (isErr ? ' err' : ''); }
-    function setProgress(p){ bar.style.width = (Math.max(0, Math.min(1, p)) * 100) + '%'; }
+    function setStatus(msg, err=false){ els.status.textContent = msg; els.status.className = 'small' + (err ? ' err' : ''); }
+    function setProgress(p){ els.bar.style.width = (Math.max(0, Math.min(1, p)) * 100) + '%'; }
 
-    async function startCamera(){
-      try{
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-          audio: false
-        });
-        video.srcObject = stream;
-        await video.play();
-        btnShot.disabled = false;
-        setStatus('カメラ起動完了');
-      }catch(err){
-        console.error(err);
-        setStatus('カメラを開始できませんでした。権限とHTTPSを確認してください。', true);
-      }
+    // ---- Fallbacks for iOS/Safari ----
+    if (!HTMLCanvasElement.prototype.toBlob) {
+      HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+        const bin = atob(this.toDataURL(type, quality).split(',')[1]);
+        const len = bin.length; const arr = new Uint8Array(len);
+        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+        callback(new Blob([arr], { type: type || 'image/png' }));
+      };
     }
 
-    // ---- Robust worker/lan-data loader ----
+    async function canvasToBlob(canvas) {
+      return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    }
+
+    async function imageBitmapFromBlob(blob) {
+      if ('createImageBitmap' in window) {
+        try { return await createImageBitmap(blob); } catch (e) {}
+      }
+      // Fallback: draw via Image element
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.width; c.height = img.height;
+          c.getContext('2d').drawImage(img, 0, 0);
+          resolve(c);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(blob);
+      });
+    }
+
+    // ---- Robust Tesseract worker/lang loader ----
     const workerCDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js';
     const coreCDN   = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/wasm/tesseract-core.wasm.js';
     const langMirrors = [
@@ -107,9 +109,12 @@
       'https://raw.githubusercontent.com/naptha/tessdata/gh-pages/4.0.0'
     ];
 
+    let cachedWorker = null;
+    function withTimeout(promise, ms){ return Promise.race([ promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms)) ]); }
+
     async function createWorkerWithFallback(lang='jpn'){
       let lastErr;
-      for(const mirror of langMirrors){
+      for (const mirror of langMirrors){
         try{
           setStatus(`言語データ取得中 (${lang}) … ${mirror}`);
           const worker = await Tesseract.createWorker(lang, 1, {
@@ -124,87 +129,79 @@
             }
           });
           return worker;
-        }catch(e){
-          console.warn('mirror failed:', mirror, e);
-          lastErr = e;
-        }
+        }catch(e){ console.warn('mirror failed:', mirror, e); lastErr = e; }
       }
       throw lastErr || new Error('Failed to load language data');
     }
 
-    async function doOCR(imageBitmap){
-      setStatus('OCR準備中…');
-      setProgress(0);
-
-      // Timeout guard (20s) for stuck-at-0%
-      const withTimeout = (p, ms) => Promise.race([
-        p,
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-      ]);
-
-      let worker;
+    async function preloadJapanese(){
       try{
-        worker = await withTimeout(createWorkerWithFallback('jpn'), 20000);
-      }catch(err){
-        console.warn('日本語データの読み込みに失敗。英語にフォールバックします。', err);
-        setStatus('日本語データ取得に失敗 → 英語にフォールバック', true);
-        worker = await createWorkerWithFallback('eng');
+        setProgress(0);
+        cachedWorker = await withTimeout(createWorkerWithFallback('jpn'), 25000);
+        setProgress(1); setStatus('日本語データの事前読込 完了');
+      }catch(e){
+        console.warn('preload failed, fallback to ENG on demand', e);
+        setStatus('日本語データの事前読込に失敗（後で英語にフォールバック）', true);
+        cachedWorker = null;
       }
+    }
 
-      const { data: { text} } = await worker.recognize(imageBitmap, {
-        tessedit_pageseg_mode: '3',
-      });
-      await worker.terminate();
-      setProgress(1);
-      setStatus('完了');
+    async function ensureWorker(){
+      if (cachedWorker) return cachedWorker;
+      try { return await withTimeout(createWorkerWithFallback('jpn'), 20000); }
+      catch(e){ setStatus('日本語データ取得に失敗 → 英語にフォールバック', true); return await createWorkerWithFallback('eng'); }
+    }
+
+    async function startCamera(){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        els.video.srcObject = stream;
+        await els.video.play();
+        els.btnShot.disabled = false;
+        setStatus('カメラ起動完了');
+      }catch(err){ console.error(err); setStatus('カメラを開始できませんでした。権限とHTTPSを確認してください。', true); }
+    }
+
+    async function doOCR(imageBitmap){
+      setStatus('OCR準備中…'); setProgress(0);
+      const worker = await ensureWorker();
+      const { data: { text } } = await worker.recognize(imageBitmap, { tessedit_pageseg_mode: '3' });
+      setProgress(1); setStatus('完了');
       return text;
     }
 
-    btnStart.addEventListener('click', startCamera);
+    els.btnPreload.addEventListener('click', preloadJapanese);
+    els.btnStart.addEventListener('click', startCamera);
 
-    btnShot.addEventListener('click', async () => {
+    els.btnShot.addEventListener('click', async () => {
       try{
         setStatus('撮影中…');
-        const vw = video.videoWidth || 1280;
-        const vh = video.videoHeight || 720;
-        const maxW = 1600;
-        const scale = Math.min(1, maxW / vw);
-        canvas.width = Math.floor(vw * scale);
-        canvas.height = Math.floor(vh * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const vw = els.video.videoWidth || 1280, vh = els.video.videoHeight || 720;
+        const maxW = 1600, scale = Math.min(1, maxW / vw);
+        els.canvas.width = Math.floor(vw * scale); els.canvas.height = Math.floor(vh * scale);
+        const ctx = els.canvas.getContext('2d'); ctx.drawImage(els.video, 0, 0, els.canvas.width, els.canvas.height);
 
-        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-        const imgBitmap = await createImageBitmap(blob);
+        const blob = await canvasToBlob(els.canvas);
+        const imgBitmap = await imageBitmapFromBlob(blob);
 
         const text = await doOCR(imgBitmap);
-        out.value = (out.value ? out.value + "\n" : "") + text.trim();
-      }catch(err){
-        console.error(err);
-        setStatus('OCRでエラーが発生しました: ' + err.message, true);
-      }
+        els.out.value = (els.out.value ? els.out.value + "\\n" : "") + (text || '').trim();
+      }catch(err){ console.error(err); setStatus('OCRでエラー: ' + err.message, true); }
     });
 
-    btnCopy.addEventListener('click', async () => {
-      try{ await navigator.clipboard.writeText(out.value || ''); setStatus('コピーしました'); }
+    els.btnCopy.addEventListener('click', async () => {
+      try{ await navigator.clipboard.writeText(els.out.value || ''); setStatus('コピーしました'); }
       catch(e){ setStatus('コピーに失敗しました', true); }
     });
-
-    btnDownload.addEventListener('click', () => {
-      const blob = new Blob([out.value || ''], {type:'text/plain;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'ocr_result.txt'; a.click();
-      URL.revokeObjectURL(url);
+    els.btnDownload.addEventListener('click', () => {
+      const blob = new Blob([els.out.value || ''], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'ocr_result.txt'; a.click(); URL.revokeObjectURL(url);
     });
-
-    btnClear.addEventListener('click', () => {
-      out.value = ''; setStatus('クリアしました'); setProgress(0);
-    });
+    els.btnClear.addEventListener('click', () => { els.out.value = ''; setStatus('クリアしました'); setProgress(0); });
 
     document.addEventListener('visibilitychange', () => {
-      if(document.visibilityState === 'visible' && video.srcObject){
-        video.play().catch(()=>{});
-      }
+      if (document.visibilityState === 'visible' && els.video.srcObject) { els.video.play().catch(()=>{}); }
     });
   </script>
 </body>
